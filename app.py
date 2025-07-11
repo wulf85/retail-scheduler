@@ -9,7 +9,7 @@ st.title("Retail Roster Scheduler")
 if "staff_list" not in st.session_state:
     st.session_state.staff_list = []
 
-st.subheader("Staff Registration")
+st.subheader("🧑‍🤝‍🧑 Staff Registration")
 with st.form("staff_form"):
     name = st.text_input("Name")
     role = st.selectbox("Role", ["Crew", "Supervisor"])
@@ -20,16 +20,16 @@ with st.form("staff_form"):
             Staff(name, role, availability, max_hours=9999, min_off_days=2)
         )
 
-st.markdown("### Current Team")
+st.markdown("### 👥 Registered Team")
 for staff in st.session_state.staff_list:
     st.write(f"- {staff.name} ({staff.role}) – Available on: {', '.join(staff.availability)}")
 
 # --- Rules ---
-st.subheader("Scheduling Rules")
+st.subheader("⚙️ Scheduling Rules")
 opening = st.time_input("Store Opening", datetime.time(11, 0))
 closing = st.time_input("Store Closing", datetime.time(21, 0))
-min_weekday = st.slider("Minimum Staff on Weekdays", 1, 10, 6)
-min_weekend = st.slider("Minimum Staff on Weekends", 1, 10, 6)
+min_weekday = st.slider("Minimum Staff (Weekdays)", 1, 10, 6)
+min_weekend = st.slider("Minimum Staff (Weekends)", 1, 10, 6)
 
 avoid_consec_close = st.checkbox("Avoid Consecutive Closing Shifts", value=True)
 avoid_consec_incharge = st.checkbox("Avoid Consecutive In-Charge Shifts", value=True)
@@ -38,7 +38,7 @@ max_incharge = st.slider("Max In-Charge per Week", 0, 7, 3)
 enable_smart = st.checkbox("Enable Auto-Tuning", value=True)
 
 # --- Generate Roster ---
-if st.button("Generate Weekly Roster") and st.session_state.staff_list:
+if st.button("🛠️ Generate Weekly Roster") and st.session_state.staff_list:
     planner = RosterGenerator(
         staff_list=st.session_state.staff_list,
         opening_hour=opening.strftime("%H:%M"),
@@ -65,6 +65,6 @@ if st.button("Generate Weekly Roster") and st.session_state.staff_list:
     for issue in planner.list_violations():
         st.markdown(f"- {issue}")
 
-    if st.button("Export Roster to Excel"):
+    if st.button("📤 Export Roster to Excel"):
         planner.export_to_excel("weekly_roster.xlsx")
         st.success("✅ Roster saved as weekly_roster.xlsx")

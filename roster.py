@@ -43,7 +43,6 @@ class RosterGenerator:
         self.report_time = self._subtract_minutes(self.opening_time, 30)
         self.morning_end = datetime.time(19, 0)
         self.afternoon_start = datetime.time(12, 0)
-
         self.min_weekday = min_staff_weekday
         self.min_weekend = min_staff_weekend
         self.training_schedule = training_schedule or {}
@@ -65,12 +64,10 @@ class RosterGenerator:
             requested = staff.weekly_off_requests.get(week_id, [])
             scheduled = list(staff.schedule.keys())
             selected = [d for d in requested if d in staff.availability and d not in scheduled]
-
             remaining = staff.min_off_days - len(selected)
             fillable = [d for d in ALL_DAYS if d in staff.availability and d not in scheduled and d not in selected]
             random.shuffle(fillable)
             selected += fillable[:remaining]
-
             for day in selected:
                 staff.schedule[day] = None
                 self.roster.at[staff.name, day] = "OFF"
@@ -121,10 +118,8 @@ class RosterGenerator:
         current = sum(1 for s in self.staff_list if self.roster.at[s.name, day] not in ["OFF", None])
         shortfall = max(0, required_count - current)
         eligible = [s for s in self.staff_list if s.is_available(day)]
-
         morning_given = False
         afternoon_given = False
-
         for s in sorted(eligible, key=lambda x: x.total_hours):
             name = s.name
             if shift_tracker[name]["Morning"] == 0 and not morning_given:
@@ -137,7 +132,6 @@ class RosterGenerator:
                 self.roster.at[name, day] = f"Afternoon: {self.afternoon_start.strftime('%H:%M')}–{self.closing_time.strftime('%H:%M')}"
                 shift_tracker[name]["Afternoon"] += 1
                 afternoon_given = True
-
             current = sum(1 for s in self.staff_list if self.roster.at[s.name, day] not in ["OFF", None])
             if current >= required_count:
                 break
@@ -147,18 +141,15 @@ class RosterGenerator:
         self.assign_off_days(week_id)
         self.assign_daily_in_charge()
         self.assign_closing_staff()
-
         for day in ALL_DAYS:
-            min_required = self.min_weekend if day in WEEKENDS else self.min_weekday
-            self.fill_remaining_shifts(day, min_required, shift_tracker)
-
+            required = self.min_weekend if day in WEEKENDS else self.min_weekday
+            self.fill_remaining_shifts(day, required, shift_tracker)
         for s in self.staff_list:
             for day in ALL_DAYS:
                 if day not in s.schedule:
                     s.schedule[day] = None
                     self.roster.at[s.name, day] = "OFF"
                     self.violations.append(f"{s.name} auto-marked OFF on {day}")
-
         return self.roster
 
     def summary(self):
@@ -183,12 +174,11 @@ class RosterGenerator:
         ws.append(["Activity"] + [self.activities.get(day, "—") for day in ALL_DAYS])
         ws.append(["Staff"] + ALL_DAYS)
 
-                for staff in self.staff_list:
-            row = [staff.name]
+        for s in self.staff_list:
+            row = [s.name]
             for day in ALL_DAYS:
-                row.append(self.roster.at[staff.name, day] or "")
+                row.append(self.roster.at[s.name, day] or "")
             ws.append(row)
-
         fill_colors = {
             "Morning": "ADD8E6",
             "Afternoon": "F5DEB3",
@@ -206,3 +196,4 @@ class RosterGenerator:
                         cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
 
         wb.save(filename)
+
