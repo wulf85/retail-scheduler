@@ -28,12 +28,9 @@ class Staff:
 
 class RosterGenerator:
     def __init__(self, staff_list,
-                 opening_hour="11:00",
-                 closing_hour="21:00",
-                 min_staff_weekday=6,
-                 min_staff_weekend=6,
-                 training_schedule=None,
-                 activities=None,
+                 opening_hour="11:00", closing_hour="21:00",
+                 min_staff_weekday=6, min_staff_weekend=6,
+                 training_schedule=None, activities=None,
                  enforce_non_consecutive_closing=True,
                  enforce_non_consecutive_incharge=True,
                  max_closing_per_week=None,
@@ -43,13 +40,12 @@ class RosterGenerator:
         self.staff_list = staff_list
         self.opening_time = datetime.datetime.strptime(opening_hour, "%H:%M").time()
         self.closing_time = datetime.datetime.strptime(closing_hour, "%H:%M").time()
-        self.report_time = self._subtract_minutes(self.opening_time, 30)  # lead time fixed here
+        self.report_time = self._subtract_minutes(self.opening_time, 30)
         self.morning_end = datetime.time(19, 0)
         self.afternoon_start = datetime.time(12, 0)
 
         self.min_weekday = min_staff_weekday
         self.min_weekend = min_staff_weekend
-
         self.training_schedule = training_schedule or {}
         self.activities = activities or {}
         self.enforce_non_consecutive_closing = enforce_non_consecutive_closing
@@ -60,7 +56,6 @@ class RosterGenerator:
 
         self.roster = pd.DataFrame(index=[s.name for s in staff_list], columns=ALL_DAYS)
         self.violations = []
-
 
     def _subtract_minutes(self, time_obj, minutes):
         return (datetime.datetime.combine(datetime.date.today(), time_obj) - datetime.timedelta(minutes=minutes)).time()
@@ -81,58 +76,52 @@ class RosterGenerator:
                 self.roster.at[staff.name, day] = "OFF"
 
     def assign_daily_in_charge(self):
-        pool = [s for s in self.staff_list if len(s.availability) >= 5]
-        count_tracker = defaultdict(int)
-
-        for i, day in enumerate(ALL_DAYS):
-            prev = ALL_DAYS[i - 1] if i > 0 else None
-            eligible = []
-            for s in pool:
-                had_incharge = prev in s.schedule and isinstance(s.schedule[prev], str) and "In-Charge" in s.schedule[prev]
-                if self.enforce_non_consecutive_incharge and had_incharge:
-                    continue
-                if self.max_incharge_per_week and count_tracker[s.name] >= self.max_incharge_per_week:
-                    continue
-                if s.is_available(day):
-                    eligible.append(s)
-            if eligible:
-                selected = sorted(eligible, key=lambda s: count_tracker[s.name])[0]
-                selected.assign_shift(day, datetime.time(10, 0), datetime.time(22, 0), "In-Charge")
-                self.roster.at[selected.name, day] = "In-Charge: 10:00–22:00"
-                count_tracker[selected.name] += 1
-            else:
-                self.violations.append(f"No in-charge available on {day}")
-
-    def assign_closing_staff(self):
-        count_tracker = defaultdict(int)
+        tracker = defaultdict(int)
         for i, day in enumerate(ALL_DAYS):
             prev = ALL_DAYS[i - 1] if i > 0 else None
             eligible = []
             for s in self.staff_list:
-                closed_yesterday = prev in s.schedule and isinstance(s.schedule[prev], tuple) and s.schedule[prev][1] == datetime.time(22, 0)
-                if self.enforce_non_consecutive_closing and closed_yesterday:
+                had_prev = prev in s.schedule and isinstance(s.schedule[prev], str) and "In-Charge" in s.schedule[prev]
+                if self.enforce_non_consecutive_incharge and had_prev:
                     continue
-                if self.max_closing_per_week and count_tracker[s.name] >= self.max_closing_per_week:
+                if self.max_incharge_per_week and tracker[s.name] >= self.max_incharge_per_week:
                     continue
                 if s.is_available(day):
                     eligible.append(s)
             if eligible:
-                selected = sorted(eligible, key=lambda s: count_tracker[s.name])[0]
-                selected.assign_shift(day, self.report_time, datetime.time(22, 0), "Closing")
-                self.roster.at[selected.name, day] = f"Closing: {self.report_time.strftime('%H:%M')}–22:00"
-                count_tracker[selected.name] += 1
+                s = sorted(eligible, key=lambda x: tracker[x.name])[0]
+                s.assign_shift(day, datetime.time(10, 0), datetime.time(22, 0), "In-Charge")
+                self.roster.at[s.name, day] = "In-Charge: 10:00–22:00"
+                tracker[s.name] += 1
             else:
-                self.violations.append(f"No closing staff available on {day}")
+                self.violations.append(f"No In-Charge assigned on {day}")
+
+    def assign_closing_staff(self):
+        tracker = defaultdict(int)
+        for i, day in enumerate(ALL_DAYS):
+            prev = ALL_DAYS[i - 1] if i > 0 else None
+            eligible = []
+            for s in self.staff_list:
+                closed_prev = prev in s.schedule and isinstance(s.schedule[prev], tuple) and s.schedule[prev][1] == datetime.time(22, 0)
+                if self.enforce_non_consecutive_closing and closed_prev:
+                    continue
+                if self.max_closing_per_week and tracker[s.name] >= self.max_closing_per_week:
+                    continue
+                if s.is_available(day):
+                    eligible.append(s)
+            if eligible:
+                s = sorted(eligible, key=lambda x: tracker[x.name])[0]
+                s.assign_shift(day, self.report_time, datetime.time(22, 0), "Closing")
+                self.roster.at[s.name, day] = f"Closing: {self.report_time.strftime('%H:%M')}–22:00"
+                tracker[s.name] += 1
+            else:
+                self.violations.append(f"No Closing assigned on {day}")
 
     def fill_remaining_shifts(self, day, required_count, shift_tracker):
-        current = sum(
-            1 for s in self.staff_list
-            if self.roster.at[s.name, day] not in ["OFF", None]
-        )
+        current = sum(1 for s in self.staff_list if self.roster.at[s.name, day] not in ["OFF", None])
         shortfall = max(0, required_count - current)
         eligible = [s for s in self.staff_list if s.is_available(day)]
 
-        # Limit 1 morning and 1 afternoon per day
         morning_given = False
         afternoon_given = False
 
@@ -149,10 +138,7 @@ class RosterGenerator:
                 shift_tracker[name]["Afternoon"] += 1
                 afternoon_given = True
 
-            current = sum(
-                1 for s in self.staff_list
-                if self.roster.at[s.name, day] not in ["OFF", None]
-            )
+            current = sum(1 for s in self.staff_list if self.roster.at[s.name, day] not in ["OFF", None])
             if current >= required_count:
                 break
 
@@ -163,22 +149,22 @@ class RosterGenerator:
         self.assign_closing_staff()
 
         for day in ALL_DAYS:
-            required = self.min_weekend if day in WEEKENDS else self.min_weekday
-            self.fill_remaining_shifts(day, required, shift_tracker)
+            min_required = self.min_weekend if day in WEEKENDS else self.min_weekday
+            self.fill_remaining_shifts(day, min_required, shift_tracker)
 
-        for staff in self.staff_list:
+        for s in self.staff_list:
             for day in ALL_DAYS:
-                if day not in staff.schedule:
-                    staff.schedule[day] = None
-                    self.roster.at[staff.name, day] = "OFF"
-                    self.violations.append(f"{staff.name} was auto-marked OFF on {day} due to no assignment")
+                if day not in s.schedule:
+                    s.schedule[day] = None
+                    self.roster.at[s.name, day] = "OFF"
+                    self.violations.append(f"{s.name} auto-marked OFF on {day}")
 
         return self.roster
 
     def summary(self):
         return pd.DataFrame({
             "Staff": [s.name for s in self.staff_list],
-            "Total Hours": [round(s.total_hours, 2) for s in self.staff_list],
+            "Total Hours": [round(s.total_hours, 1) for s in self.staff_list],
             "Scheduled Days": [len([d for d, v in s.schedule.items() if v]) for s in self.staff_list],
             "Off-Days": [len([d for d, v in s.schedule.items() if v is None]) for s in self.staff_list]
         })
@@ -187,7 +173,7 @@ class RosterGenerator:
         return self.violations
 
     def export_to_excel(self, filename="weekly_roster.xlsx"):
-        from openpyxl import Workbook        
+        from openpyxl import Workbook
         from openpyxl.styles import PatternFill
 
         wb = Workbook()
@@ -197,7 +183,7 @@ class RosterGenerator:
         ws.append(["Activity"] + [self.activities.get(day, "—") for day in ALL_DAYS])
         ws.append(["Staff"] + ALL_DAYS)
 
-        for staff in self.staff_list:
+                for staff in self.staff_list:
             row = [staff.name]
             for day in ALL_DAYS:
                 row.append(self.roster.at[staff.name, day] or "")
