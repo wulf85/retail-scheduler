@@ -1,23 +1,23 @@
 import streamlit as st
 import datetime
 import pandas as pd
-from roster import RosterGenerator, Staff, ALL_DAYS
+from roster import RosterGenerator, Staff, ALL_DAYS, WEEKENDS
 from utils import save_staff_to_json, load_staff_from_json, parse_weekly_requests_csv
 from offday_calendar import generate_offday_matrix, update_offday_request
 from activities import daily_activities
 from quotes import weekly_quotes
 
-st.set_page_config(page_title="Retail Roster Planner", layout="wide")
-st.title("🧭 Retail Roster Planner")
+st.set_page_config(page_title="Retail Roster Scheduler", layout="wide")
+st.title("🧭 Retail Roster Scheduler")
 
 if "staff_list" not in st.session_state:
     st.session_state.staff_list = []
     st.session_state.training_schedule = {}
     st.session_state.weekly_activities = {}
 
-# Sidebar inputs
+# Sidebar
 with st.sidebar:
-    st.header("📅 Schedule Settings")
+    st.header("📅 Settings")
     opening_time = st.time_input("Opening Time", value=datetime.time(11, 0))
     closing_time = st.time_input("Closing Time", value=datetime.time(21, 0))
     min_weekday = st.number_input("Min Staff (Weekdays)", value=6)
@@ -47,66 +47,69 @@ with st.sidebar:
 
     st.markdown("## ❌ Remove Staff")
     names = [s.name for s in st.session_state.staff_list]
-    remove_name = st.selectbox("Select", ["None"] + names)
+    remove_name = st.selectbox("Remove", ["None"] + names)
     if st.button("Remove") and remove_name != "None":
         st.session_state.staff_list = [s for s in st.session_state.staff_list if s.name != remove_name]
         st.session_state.training_schedule.pop(remove_name, None)
         st.success(f"{remove_name} removed.")
 
-    st.markdown("## 💾 Save/Load")
-    if st.button("Save"):
+    st.markdown("## 💾 Save & Load")
+    if st.button("Save Team"):
         save_staff_to_json(st.session_state.staff_list, st.session_state.training_schedule)
-    if st.button("Load"):
+    if st.button("Load Team"):
         staff, sched = load_staff_from_json()
         st.session_state.staff_list = staff
         st.session_state.training_schedule = sched
         st.success("Team loaded.")
 
-    st.markdown("## 📤 Upload Off-Day CSV")
-    uploaded_csv = st.file_uploader("Upload CSV File", type=["csv"])
-    if uploaded_csv:
-        requests = parse_weekly_requests_csv(uploaded_csv)
-        count = 0
+    st.markdown("## 📥 Upload Off-Day CSV")
+    uploaded = st.file_uploader("Upload CSV", type=["csv"])
+    if uploaded:
+        request_data = parse_weekly_requests_csv(uploaded)
+        updated_count = 0
         for s in st.session_state.staff_list:
-            if s.name in requests:
-                s.weekly_off_requests.update(requests[s.name])
-                count += 1
-        st.success(f"Imported requests for {count} staff.")
+            if s.name in request_data:
+                s.weekly_off_requests.update(request_data[s.name])
+                updated_count += 1
+        st.success(f"Imported requests for {updated_count} staff members.")
+    template_csv = "Staff Name,Week,Requested Off Days\nAlice,Week 1,\"1, 4\"\nBob,Week 2,\"3\""
+    st.download_button("📎 Download CSV Template", template_csv.encode("utf-8"), "off_day_requests_template.csv")
 
-    template = "Staff Name,Week,Requested Off Days\nAlice,Week 1,\"1, 4\"\nBob,Week 2,\"3\"\nCharlie,Week 2,\"2, 5, 7\""
-    st.download_button("📎 Download CSV Template", template.encode("utf-8"), "off_day_requests_template.csv")
+    st.markdown("## ⚙️ Smart Balance Mode")
+    smart_enabled = st.checkbox("Enable Smart Balance Mode", value=True)
+    no_consec_close = st.checkbox("Avoid consecutive closings", value=True)
+    no_consec_incharge = st.checkbox("Avoid consecutive in-charges", value=True)
+    max_close = st.number_input("Max closing shifts/week", value=3, min_value=1)
+    max_incharge = st.number_input("Max in-charge shifts/week", value=3, min_value=1)
 
-# Daily Activities
-st.subheader(f"📌 Daily Activities ({selected_week})")
+# Weekly Activities
+st.subheader(f"📌 Activities ({selected_week})")
 if selected_week not in st.session_state.weekly_activities:
     st.session_state.weekly_activities[selected_week] = daily_activities.copy()
-
-with st.expander("🛠️ Edit Activities"):
+with st.expander("Edit Activities"):
     for day in ALL_DAYS:
-        act = st.text_input(f"{day}:", value=st.session_state.weekly_activities[selected_week].get(day, ""))
+        act = st.text_input(f"{day}", value=st.session_state.weekly_activities[selected_week].get(day, ""))
         st.session_state.weekly_activities[selected_week][day] = act
 
 for day in ALL_DAYS:
-    st.markdown(f"**{day}:** {st.session_state.weekly_activities[selected_week].get(day, '—')}")
+    st.markdown(f"**{day}**: {st.session_state.weekly_activities[selected_week].get(day)}")
 
-# Quote
-quote_index = int(selected_week.split()[-1]) - 1
-st.markdown(f"## 📝 Quote of the Week\n> {weekly_quotes[quote_index]}")
+quote_idx = int(selected_week.split()[-1]) - 1
+st.markdown(f"### 📝 Quote of the Week\n> {weekly_quotes[quote_idx]}")
 
-# Off-day Calendar
-st.subheader(f"📅 Off-Day Requests for {selected_week}")
-calendar_df = generate_offday_matrix(st.session_state.staff_list, selected_week)
-st.dataframe(calendar_df)
+# Off-Day Editor
+st.subheader(f"📅 Weekly Requests: {selected_week}")
+matrix = generate_offday_matrix(st.session_state.staff_list, selected_week)
+st.dataframe(matrix)
 
-st.markdown("### ✏️ Modify Individual Request")
-edit_name = st.selectbox("Select Staff", [s.name for s in st.session_state.staff_list])
-edit_day = st.selectbox("Select Day", ALL_DAYS)
-new_status = st.selectbox("Status", ["🛌 Requested", "✅ Available"])
-if st.button("Update Off-Day"):
-    update_offday_request(st.session_state.staff_list, edit_name, selected_week, edit_day, new_status)
-    st.success(f"{edit_day} updated for {edit_name}")
+edit_name = st.selectbox("Edit Staff", [s.name for s in st.session_state.staff_list])
+edit_day = st.selectbox("Edit Day", ALL_DAYS)
+edit_status = st.selectbox("Change to", ["🛌 Requested", "✅ Available"])
+if st.button("Update Request"):
+    update_offday_request(st.session_state.staff_list, edit_name, selected_week, edit_day, edit_status)
+    st.success(f"{edit_day} updated for {edit_name}.")
 
-# Generate roster
+# Generate Roster
 if st.button("📊 Generate Roster"):
     generator = RosterGenerator(
         staff_list=st.session_state.staff_list,
@@ -117,33 +120,36 @@ if st.button("📊 Generate Roster"):
         optimal_staff_weekday=opt_weekday,
         optimal_staff_weekend=opt_weekend,
         training_schedule=st.session_state.training_schedule,
-        activities=st.session_state.weekly_activities[selected_week]
+        activities=st.session_state.weekly_activities[selected_week],
+        enforce_non_consecutive_closing=no_consec_close,
+        enforce_non_consecutive_incharge=no_consec_incharge,
+        max_closing_per_week=max_close,
+        max_incharge_per_week=max_incharge,
+        auto_tune_enabled=smart_enabled
     )
 
-    roster_df = generator.generate(week_id=selected_week)
+    st.markdown(f"🔧 **Smart Balance Mode:** {'Enabled' if smart_enabled else 'Disabled'}")
+    df = generator.generate(week_id=selected_week)
     st.subheader("📋 Weekly Roster")
-    st.dataframe(roster_df)
+    st.dataframe(df)
 
     st.subheader("🔍 Staff Summary")
     st.dataframe(generator.summary())
 
-    # Coverage overview
-    st.subheader("🧮 Daily Coverage Overview")
+    st.subheader("🧮 Daily Coverage")
     coverage = []
     for day in ALL_DAYS:
-        assigned = sum(
-            1 for s in st.session_state.staff_list if s.schedule.get(day) and s.schedule.get(day) != "OFF"
-        )
-        required = min_weekend if day in ["Saturday", "Sunday"] else min_weekday
+        assigned = sum(1 for s in st.session_state.staff_list if s.schedule.get(day) and s.schedule[day] != "OFF")
+        required = min_weekend if day in WEEKENDS else min_weekday
         status = "✅" if assigned >= required else "⚠️ Understaffed"
         coverage.append((day, assigned, required, status))
     st.dataframe(pd.DataFrame(coverage, columns=["Day", "Assigned", "Minimum", "Status"]))
 
-    st.subheader("⚠️ Violations")
+    st.subheader("⚠️ Violations & Actions")
     for v in generator.list_violations():
         st.warning(v)
 
-    if st.button("📤 Export to Excel"):
+    if st.button("📥 Export to Excel"):
         generator.export_to_excel("weekly_roster.xlsx")
         with open("weekly_roster.xlsx", "rb") as f:
             st.download_button("Download Excel", f, file_name="weekly_roster.xlsx")
