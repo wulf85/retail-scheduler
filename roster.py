@@ -1,4 +1,3 @@
-# roster.py
 import datetime
 import pandas as pd
 from collections import defaultdict
@@ -180,14 +179,8 @@ class RosterGenerator:
 
             for staff in fillable[:needed]:
                 staff.assign_shift(day, self.report_time, self.closing_time)
+                self.roster.at[staff.name, day] = f"{self.report_time.strftime('%H:%M')}–{self.closing_time.strftime('%H:%M')}                
                 self.roster.at[staff.name, day] = f"{self.report_time.strftime('%H:%M')}–{self.closing_time.strftime('%H:%M')}"
-
-            current_count = sum(1 for s in self.staff_list if s.schedule.get(day) and s.schedule[day] != "OFF")
-            if current_count < optimal:
-                extra = [s for s in fillable if day not in s.schedule]
-                for staff in extra[:optimal - current_count]:
-                    staff.assign_shift(day, self.report_time, self.closing_time)
-                    self.roster.at[staff.name, day.day] = f"{self.report_time.strftime('%H:%M')}–{self.closing_time.strftime('%H:%M')}"
 
         for staff in self.staff_list:
             off_count = sum(1 for v in staff.schedule.values() if v is None)
