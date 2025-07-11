@@ -13,8 +13,8 @@ class Staff:
         self.availability = availability
         self.max_hours = max_hours
         self.min_off_days = min_off_days
-        self.weekly_off_requests = {}  # {"Week 1": ["Monday", "Friday"]}
-        self.schedule = {}             # {"Monday": (start_time, end_time) or None}
+        self.weekly_off_requests = {}
+        self.schedule = {}
         self.total_hours = 0
 
     def assign_shift(self, day, start, end):
@@ -92,11 +92,7 @@ class RosterGenerator:
             eligible = []
 
             for s in pool:
-                had_incharge_yesterday = (
-                    previous in s.schedule and
-                    isinstance(s.schedule[previous], str) and
-                    "In-Charge" in s.schedule[previous]
-                )
+                had_incharge_yesterday = previous in s.schedule and isinstance(s.schedule[previous], str) and "In-Charge" in s.schedule[previous]
                 if self.enforce_non_consecutive_incharge and had_incharge_yesterday:
                     continue
                 if self.max_incharge_per_week is not None and count_tracker[s.name] >= self.max_incharge_per_week:
@@ -121,11 +117,7 @@ class RosterGenerator:
             eligible = []
 
             for s in self.staff_list:
-                closed_yesterday = (
-                    previous in s.schedule and
-                    isinstance(s.schedule[previous], tuple) and
-                    s.schedule[previous][1] == datetime.time(22, 0)
-                )
+                closed_yesterday = previous in s.schedule and isinstance(s.schedule[previous], tuple) and s.schedule[previous][1] == datetime.time(22, 0)
                 if self.enforce_non_consecutive_closing and closed_yesterday:
                     continue
                 if self.max_closing_per_week is not None and count_tracker[s.name] >= self.max_closing_per_week:
@@ -147,10 +139,10 @@ class RosterGenerator:
 
     def _auto_tune_daily_staffing(self):
         for day in ALL_DAYS:
-            current_count = sum(1 for s in self.staff_list if s.schedule.get(day) and s.schedule[day] != "OFF")
+            current = sum(1 for s in self.staff_list if s.schedule.get(day) and s.schedule[day] != "OFF")
             required = self.min_weekend if day in WEEKENDS else self.min_weekday
-            if current_count < required:
-                shortfall = required - current_count
+            if current < required:
+                shortfall = required - current
                 candidates = [s for s in self.staff_list if s.is_available(day) and day not in s.schedule]
                 for s in candidates[:shortfall]:
                     s.assign_shift(day, self.report_time, self.closing_time)
@@ -164,7 +156,7 @@ class RosterGenerator:
                 for d in reversed(overload_days):
                     s.schedule[d] = None
                     self.roster.at[s.name, d] = "OFF"
-                    s.total_hours -= 8  # approximate shift length
+                    s.total_hours -= 8
                     self.violations.append(f"Smart Balance Mode: Converted {d} to OFF for {s.name} to reduce hours.")
                     if s.total_hours <= s.max_hours:
                         break
@@ -174,31 +166,31 @@ class RosterGenerator:
         self.assign_daily_in_charge()
         self.assign_closing_staff()
 
-        day_counts = defaultdict(int)
         for day in ALL_DAYS:
             available = [s for s in self.staff_list if s.is_available(day)]
             preferred = [s for s in available if day in s.weekly_off_requests.get(week_id, [])]
             working_pool = [s for s in available if s not in preferred]
-            cap = self.opt_weekend if day in WEEKENDS else self.opt_weekday
 
-            for staff in working_pool[:cap]:
-                if day in staff.schedule: continue
-                if staff.name in self.training_schedule and day in self.training_schedule[staff.name]:
-                    start, end = self.training_schedule[staff.name][day]
-                    staff.assign_shift(day, start, end)
-                    self.roster.at[staff.name, day] = f"Training: {start.strftime('%H:%M')}–{end.strftime('%H:%M')}"
-                else:
-                    staff.assign_shift(day,                    self.report_time, self.closing_time)
-                    self.roster.at[staff.name, day] = f"{self.report_time.strftime('%H:%M')}–{self.closing_time.strftime('%H:%M')}"
-                day_counts[day] += 1
+            required = self.min_weekend if day in WEEKENDS else self.min_weekday
+            optimal = self.opt_weekend if day in WEEKENDS else self.opt_weekday
 
-        required_map = {day: self.min_weekend if day in WEEKENDS else self.min_weekday for day in ALL_DAYS}
-        for day in ALL_DAYS:
-            if day_counts[day] < required_map[day]:
-                self.violations.append(f"{day} has only {day_counts[day]} staff (min required: {required_map[day]})")
+            current_count = sum(1 for s in self.staff_list if s.schedule.get(day) and s.schedule[day] != "OFF")
+            needed = max(0, required - current_count)
+            fillable = [s for s in working_pool if day not in s.schedule]
+
+            for staff in fillable[:needed]:
+                staff.assign_shift(day, self.report_time, self.closing_time)
+                self.roster.at[staff.name, day] = f"{self.report_time.strftime('%H:%M')}–{self.closing_time.strftime('%H:%M')}"
+
+            current_count = sum(1 for s in self.staff_list if s.schedule.get(day) and s.schedule[day] != "OFF")
+            if current_count < optimal:
+                extra = [s for s in fillable if day not in s.schedule]
+                for staff in extra[:optimal - current_count]:
+                    staff.assign_shift(day, self.report_time, self.closing_time)
+                    self.roster.at[staff.name, day.day] = f"{self.report_time.strftime('%H:%M')}–{self.closing_time.strftime('%H:%M')}"
 
         for staff in self.staff_list:
-            off_count = sum(1 for d, v in staff.schedule.items() if v is None)
+            off_count = sum(1 for v in staff.schedule.values() if v is None)
             if off_count < staff.min_off_days:
                 self.violations.append(f"{staff.name} has only {off_count} off-days.")
             if staff.total_hours > staff.max_hours:
@@ -239,10 +231,10 @@ class RosterGenerator:
             ws.append(row)
 
         fill_colors = {
-            "In-Charge": "FFA500",   # orange
-            "Closing": "87CEEB",     # blue
-            "Training": "90EE90",    # green
-            "OFF": "D3D3D3"          # gray
+            "In-Charge": "FFA500",
+            "Closing": "87CEEB",
+            "Training": "90EE90",
+            "OFF": "D3D3D3"
         }
 
         for row in ws.iter_rows(min_row=3, min_col=2):
