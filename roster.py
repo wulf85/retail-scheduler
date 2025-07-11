@@ -175,7 +175,7 @@ class RosterGenerator:
 
     def export_to_excel(self, filename="weekly_roster.xlsx"):
         from openpyxl import Workbook
-        fromopenpyxl.styles import PatternFill
+        from openpyxl.styles import PatternFill
 
         wb = Workbook()
         ws = wb.active
