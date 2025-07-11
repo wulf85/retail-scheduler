@@ -11,13 +11,13 @@ class Staff:
         self.name = name
         self.role = role
         self.availability = availability
-        self.max_hours = max_hours  # base + overtime buffer from app
+        self.max_hours = max_hours  # base + overtime buffer
         self.min_off_days = min_off_days
         self.weekly_off_requests = {}
         self.schedule = {}
         self.total_hours = 0
 
-    def assign_shift(self, day, start, end):
+    def assign_shift(self, day, start, end, label=None):
         duration = datetime.datetime.combine(datetime.date.today(), end) - datetime.datetime.combine(datetime.date.today(), start)
         hours = duration.total_seconds() / 3600
         self.schedule[day] = (start, end)
@@ -43,6 +43,8 @@ class RosterGenerator:
         self.closing_time = datetime.datetime.strptime(closing_hour, "%H:%M").time()
         self.report_time = self._subtract_minutes(self.opening_time, report_lead)
         self.handover_time = self._add_minutes(self.closing_time, handover_extension)
+        self.morning_end = datetime.time(19, 0)
+        self.afternoon_start = datetime.time(12, 0)
         self.min_weekday = min_staff_weekday
         self.min_weekend = min_staff_weekend
         self.opt_weekday = optimal_staff_weekday
@@ -70,9 +72,9 @@ class RosterGenerator:
             selected = [d for d in requested if d in staff.availability and d not in scheduled]
 
             remaining = staff.min_off_days - len(selected)
-            available_fill = [d for d in ALL_DAYS if d in staff.availability and d not in scheduled and d not in selected]
-            random.shuffle(available_fill)
-            selected += available_fill[:remaining]
+            fillable = [d for d in ALL_DAYS if d in staff.availability and d not in scheduled and d not in selected]
+            random.shuffle(fillable)
+            selected += fillable[:remaining]
 
             for day in selected:
                 staff.schedule[day] = None
@@ -95,7 +97,7 @@ class RosterGenerator:
                     eligible.append(s)
             if eligible:
                 selected = sorted(eligible, key=lambda s: count_tracker[s.name])[0]
-                selected.assign_shift(day, datetime.time(10, 0), datetime.time(22, 0))
+                selected.assign_shift(day, datetime.time(10, 0), datetime.time(22, 0), "In-Charge")
                 self.roster.at[selected.name, day] = "In-Charge: 10:00–22:00"
                 count_tracker[selected.name] += 1
             else:
@@ -116,7 +118,7 @@ class RosterGenerator:
                     eligible.append(s)
             if eligible:
                 selected = sorted(eligible, key=lambda s: count_tracker[s.name])[0]
-                selected.assign_shift(day, self.report_time, datetime.time(22, 0))
+                selected.assign_shift(day, self.report_time, datetime.time(22, 0), "Closing")
                 self.roster.at[selected.name, day] = f"Closing: {self.report_time.strftime('%H:%M')}–22:00"
                 count_tracker[selected.name] += 1
             else:
@@ -125,10 +127,14 @@ class RosterGenerator:
     def fill_remaining_shifts(self, day, required_count):
         current = sum(1 for s in self.staff_list if s.schedule.get(day) and s.schedule[day] != "OFF")
         shortfall = max(0, required_count - current)
-        eligible = [s for s in self.staff_list if s.is_available(day) and s.total_hours + 8 <= s.max_hours]
-        for s in sorted(eligible, key=lambda x: x.total_hours)[:shortfall]:
-            s.assign_shift(day, self.report_time, self.closing_time)
-            self.roster.at[s.name, day] = f"{self.report_time.strftime('%H:%M')}–{self.closing_time.strftime('%H:%M')}"
+        eligible = [s for s in self.staff_list if s.is_available(day) and s.total_hours + 5 <= s.max_hours]
+        split = shortfall // 2 + shortfall % 2
+        for s in sorted(eligible, key=lambda x: x.total_hours)[:split]:
+            s.assign_shift(day, self.report_time, self.morning_end, "Morning")
+            self.roster.at[s.name, day] = f"Morning: {self.report_time.strftime('%H:%M')}–{self.morning_end.strftime('%H:%M')}"
+        for s in sorted(eligible, key=lambda x: x.total_hours)[split:shortfall]:
+            s.assign_shift(day, self.afternoon_start, self.closing_time, "Afternoon")
+            self.roster.at[s.name, day] = f"Afternoon: {self.afternoon_start.strftime('%H:%M')}–{self.closing_time.strftime('%H:%M')}"
 
     def _auto_tune_individual_overload(self):
         for s in self.staff_list:
@@ -150,7 +156,7 @@ class RosterGenerator:
             required = self.min_weekend if day in WEEKENDS else self.min_weekday
             self.fill_remaining_shifts(day, required)
 
-        # Final check: ensure every staff has every day scheduled (OFF or Shift)
+        # Fill blank days with OFF status
         for staff in self.staff_list:
             for day in ALL_DAYS:
                 if day not in staff.schedule:
@@ -169,7 +175,6 @@ class RosterGenerator:
             self._auto_tune_individual_overload()
 
         return self.roster
-
 
     def summary(self):
         return pd.DataFrame({
@@ -200,6 +205,8 @@ class RosterGenerator:
             ws.append(row)
 
         fill_colors = {
+            "Morning": "ADD8E6",
+            "Afternoon": "F5DEB3",
             "In-Charge": "FFA500",
             "Closing": "87CEEB",
             "Training": "90EE90",
