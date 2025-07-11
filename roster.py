@@ -179,7 +179,6 @@ class RosterGenerator:
 
             for staff in fillable[:needed]:
                 staff.assign_shift(day, self.report_time, self.closing_time)
-                self.roster.at[staff.name, day] = f"{self.report_time.strftime('%H:%M')}–{self.closing_time.strftime('%H:%M')}                
                 self.roster.at[staff.name, day] = f"{self.report_time.strftime('%H:%M')}–{self.closing_time.strftime('%H:%M')}"
 
         for staff in self.staff_list:
