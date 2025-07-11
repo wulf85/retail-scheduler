@@ -150,6 +150,14 @@ class RosterGenerator:
             required = self.min_weekend if day in WEEKENDS else self.min_weekday
             self.fill_remaining_shifts(day, required)
 
+        # Final check: ensure every staff has every day scheduled (OFF or Shift)
+        for staff in self.staff_list:
+            for day in ALL_DAYS:
+                if day not in staff.schedule:
+                    staff.schedule[day] = None
+                    self.roster.at[staff.name, day] = "OFF"
+                    self.violations.append(f"{staff.name} was auto-marked OFF on {day} due to no assignment")
+
         for s in self.staff_list:
             off_count = sum(1 for v in s.schedule.values() if v is None)
             if off_count < s.min_off_days:
@@ -161,6 +169,7 @@ class RosterGenerator:
             self._auto_tune_individual_overload()
 
         return self.roster
+
 
     def summary(self):
         return pd.DataFrame({
