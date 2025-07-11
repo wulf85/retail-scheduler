@@ -17,19 +17,38 @@ if "staff_list" not in st.session_state:
 
 # Sidebar
 with st.sidebar:
-    st.header("📅 Schedule Settings")
+    st.header("🛠️ Roster Configuration")
+
+    st.markdown("---")
+    st.markdown("### 🕒 Store Hours")
     opening = st.time_input("Opening Time", datetime.time(11, 0))
     closing = st.time_input("Closing Time", datetime.time(21, 0))
-    min_weekday = st.number_input("Min Staff (Weekdays)", value=6)
-    min_weekend = st.number_input("Min Staff (Weekends)", value=7)
+
+    st.markdown("---")
+    st.markdown("### 👥 Staffing Requirements")
+    selected_week = st.selectbox("Week", [f"Week {i+1}" for i in range(4)])
+    min_weekday = st.number_input("Minimum Staff (Weekdays)", value=6)
+    min_weekend = st.number_input("Minimum Staff (Weekends)", value=7)
     opt_weekday = st.number_input("Optimal Staff (Weekdays)", value=7)
     opt_weekend = st.number_input("Optimal Staff (Weekends)", value=8)
-    selected_week = st.selectbox("Week", [f"Week {i+1}" for i in range(4)])
 
-    st.markdown("## ➕ Add Staff")
-    name = st.text_input("Name")
+    st.markdown("---")
+    st.markdown("### ⚙️ Shift Logic")
+    enable_smart = st.checkbox("Enable Smart Balance Mode", value=True)
+    avoid_consec_close = st.checkbox("Avoid Consecutive Closings", value=True)
+    avoid_consec_incharge = st.checkbox("Avoid Consecutive In-Charges", value=True)
+    max_close = st.slider("Max Closing Shifts / Week", 1, 7, 3)
+    max_incharge = st.slider("Max In-Charge Shifts / Week", 1, 7, 3)
+    max_overtime = st.slider("Max Overtime Hours", 0, 12, 8)
+
+    for s in st.session_state.staff_list:
+        s.max_hours = 44 + max_overtime
+
+    st.markdown("---")
+    st.markdown("### 👩‍💼 Team Management")
+    name = st.text_input("Staff Name")
     role = st.selectbox("Role", ["Regular", "Cashier", "Supervisor"])
-    availability = st.multiselect("Availability", ALL_DAYS)
+    availability = st.multiselect("Available Days", ALL_DAYS)
     training_day = st.selectbox("Training Day", ["None"] + availability)
     train_start = st.time_input("Training Start", datetime.time(12, 0))
     train_end = st.time_input("Training End", datetime.time(17, 0))
@@ -43,14 +62,16 @@ with st.sidebar:
             st.session_state.training_schedule.setdefault(name, {})[training_day] = (train_start, train_end)
         st.success(f"{name} added.")
 
-    st.markdown("## ❌ Remove Staff")
+    st.markdown("---")
+    st.markdown("### ✂️ Remove Staff")
     remove_name = st.selectbox("Select Staff", ["None"] + [s.name for s in st.session_state.staff_list])
     if st.button("Remove Staff") and remove_name != "None":
         st.session_state.staff_list = [s for s in st.session_state.staff_list if s.name != remove_name]
         st.session_state.training_schedule.pop(remove_name, None)
         st.success(f"{remove_name} removed.")
 
-    st.markdown("## 💾 Save & Load")
+    st.markdown("---")
+    st.markdown("### 💾 Data Tools")
     if st.button("Save Team"):
         save_staff_to_json(st.session_state.staff_list, st.session_state.training_schedule)
     if st.button("Load Team"):
@@ -59,8 +80,7 @@ with st.sidebar:
         st.session_state.training_schedule = schedule
         st.success("Team loaded.")
 
-    st.markdown("## 📤 Upload Off-Day CSV")
-    uploaded = st.file_uploader("Upload CSV", type=["csv"])
+    uploaded = st.file_uploader("📤 Upload Off-Day CSV", type=["csv"])
     if uploaded:
         data = parse_weekly_requests_csv(uploaded)
         count = 0
@@ -71,16 +91,19 @@ with st.sidebar:
         st.success(f"Imported requests for {count} staff.")
 
     sample_csv = "Staff Name,Week,Requested Off Days\nAlice,Week 1,\"1, 4\"\nBob,Week 2,\"3\""
-    st.download_button("📎 Download CSV Template", sample_csv.encode("utf-8"), "off_day_requests_template.csv")
+    st.download_button("📎 Download Template", sample_csv.encode("utf-8"), "off_day_requests_template.csv")
 
-    st.markdown("## ⚙️ Smart Balance Mode")
-    enable_smart = st.checkbox("Enable Smart Balance Mode", value=True)
-    avoid_consec_close = st.checkbox("Avoid consecutive closings", value=True)
-    avoid_consec_incharge = st.checkbox("Avoid consecutive in-charges", value=True)
-    max_close = st.number_input("Max Closing Shifts/Week", value=3, min_value=1)
-    max_incharge = st.number_input("Max In-Charge Shifts/Week", value=3, min_value=1)
+# Preview hours before generate
+st.subheader("⏳ Pre-Planning Workload Preview")
+preview_data = pd.DataFrame({
+    "Staff": [s.name for s in st.session_state.staff_list],
+    "Availability": [len(s.availability) for s in st.session_state.staff_list],
+    "Requested OFF": [len(s.weekly_off_requests.get(selected_week, [])) for s in st.session_state.staff_list],
+    "Max Hours w/ Overtime": [s.max_hours for s in st.session_state.staff_list]
+})
+st.dataframe(preview_data)
 
-# Weekly activities
+# Activities section
 st.subheader(f"📌 Daily Activities ({selected_week})")
 if selected_week not in st.session_state.weekly_activities:
     st.session_state.weekly_activities[selected_week] = daily_activities.copy()
@@ -92,7 +115,7 @@ with st.expander("Edit Activities"):
 
 st.markdown(f"### 📝 Quote of the Week\n> {weekly_quotes[int(selected_week[-1]) - 1]}")
 
-# Calendar View
+# Off-day calendar
 st.subheader("📅 Weekly Off-Day Overview")
 matrix = generate_offday_matrix(st.session_state.staff_list, selected_week)
 st.dataframe(matrix)
