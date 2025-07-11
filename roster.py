@@ -28,10 +28,12 @@ class Staff:
 
 class RosterGenerator:
     def __init__(self, staff_list,
-                 opening_hour="11:00", closing_hour="21:00",
-                 report_lead=30,
-                 min_staff_weekday=6, min_staff_weekend=6,
-                 training_schedule=None, activities=None,
+                 opening_hour="11:00",
+                 closing_hour="21:00",
+                 min_staff_weekday=6,
+                 min_staff_weekend=6,
+                 training_schedule=None,
+                 activities=None,
                  enforce_non_consecutive_closing=True,
                  enforce_non_consecutive_incharge=True,
                  max_closing_per_week=None,
@@ -41,11 +43,13 @@ class RosterGenerator:
         self.staff_list = staff_list
         self.opening_time = datetime.datetime.strptime(opening_hour, "%H:%M").time()
         self.closing_time = datetime.datetime.strptime(closing_hour, "%H:%M").time()
-        self.report_time = self._subtract_minutes(self.opening_time, report_lead)
+        self.report_time = self._subtract_minutes(self.opening_time, 30)  # lead time fixed here
         self.morning_end = datetime.time(19, 0)
         self.afternoon_start = datetime.time(12, 0)
+
         self.min_weekday = min_staff_weekday
         self.min_weekend = min_staff_weekend
+
         self.training_schedule = training_schedule or {}
         self.activities = activities or {}
         self.enforce_non_consecutive_closing = enforce_non_consecutive_closing
@@ -53,8 +57,10 @@ class RosterGenerator:
         self.max_closing_per_week = max_closing_per_week
         self.max_incharge_per_week = max_incharge_per_week
         self.auto_tune_enabled = auto_tune_enabled
+
         self.roster = pd.DataFrame(index=[s.name for s in staff_list], columns=ALL_DAYS)
         self.violations = []
+
 
     def _subtract_minutes(self, time_obj, minutes):
         return (datetime.datetime.combine(datetime.date.today(), time_obj) - datetime.timedelta(minutes=minutes)).time()
