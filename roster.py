@@ -85,19 +85,34 @@ class RosterGenerator:
             count_tracker[selected.name] += 1
 
     def assign_closing_staff(self):
-        count_tracker = defaultdict(int)
-        for day in ALL_DAYS:
-            eligible = [s for s in self.staff_list if s.is_available(day)]
-            sorted_pool = sorted(eligible, key=lambda s: count_tracker[s.name])
-            assigned = False
-            for staff in sorted_pool:
-                staff.assign_shift(day, self.report_time, datetime.time(22, 0))
-                self.roster.at[staff.name, day] = f"Closing: {self.report_time.strftime('%H:%M')}–22:00"
-                count_tracker[staff.name] += 1
-                assigned = True
-                break
-            if not assigned:
-                self.violations.append(f"No closing staff available on {day}")
+    count_tracker = defaultdict(int)
+
+    for i, day in enumerate(ALL_DAYS):
+        previous_day = ALL_DAYS[i - 1] if i > 0 else None
+
+        eligible = []
+        for s in self.staff_list:
+            # Only assign if staff is available today and didn't close yesterday
+            closed_yesterday = (
+                previous_day in s.schedule
+                and isinstance(s.schedule[previous_day], tuple)
+                and s.schedule[previous_day][1] == datetime.time(22, 0)
+            )
+            if s.is_available(day) and not closed_yesterday:
+                eligible.append(s)
+
+        sorted_pool = sorted(eligible, key=lambda s: count_tracker[s.name])
+        assigned = False
+        for staff in sorted_pool:
+            staff.assign_shift(day, self.report_time, datetime.time(22, 0))
+            self.roster.at[staff.name, day] = f"Closing: {self.report_time.strftime('%H:%M')}–22:00"
+            count_tracker[staff.name] += 1
+            assigned = True
+            break
+
+        if not assigned:
+            self.violations.append(f"No closing staff available on {day} (non-consecutive rule)")
+
 
     def generate(self, week_id="Week 1"):
         self.assign_off_days(week_id)
