@@ -1,0 +1,197 @@
+{
+    "staff": [
+        {
+            "name": "Richard",
+            "role": "Regular",
+            "availability": [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday"
+            ],
+            "max_hours": 44,
+            "min_off_days": 2,
+            "preferred_off_days": []
+        },
+        {
+            "name": "Berlena",
+            "role": "Regular",
+            "availability": [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday"
+            ],
+            "max_hours": 44,
+            "min_off_days": 2,
+            "preferred_off_days": []
+        },
+        {
+            "name": "Louis",
+            "role": "Regular",
+            "availability": [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday"
+            ],
+            "max_hours": 44,
+            "min_off_days": 2,
+            "preferred_off_days": []
+        },
+        {
+            "name": "Daniel",
+            "role": "Regular",
+            "availability": [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday"
+            ],
+            "max_hours": 44,
+            "min_off_days": 2,
+            "preferred_off_days": []
+        },
+        {
+            "name": "Kenny",
+            "role": "Regular",
+            "availability": [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday"
+            ],
+            "max_hours": 44,
+            "min_off_days": 2,
+            "preferred_off_days": []
+        },
+        {
+            "name": "Junxian",
+            "role": "Regular",
+            "availability": [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday"
+            ],
+            "max_hours": 44,
+            "min_off_days": 2,
+            "preferred_off_days": []
+        },
+        {
+            "name": "Timmy",
+            "role": "Regular",
+            "availability": [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday"
+            ],
+            "max_hours": 44,
+            "min_off_days": 2,
+            "preferred_off_days": []
+        },
+        {
+            "name": "Leong",
+            "role": "Regular",
+            "availability": [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday"
+            ],
+            "max_hours": 44,
+            "min_off_days": 2,
+            "preferred_off_days": []
+        },
+        {
+            "name": "Ibrahim",
+            "role": "Regular",
+            "availability": [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday"
+            ],
+            "max_hours": 44,
+            "min_off_days": 2,
+            "preferred_off_days": []
+        },
+        {
+            "name": "Yoyo",
+            "role": "Regular",
+            "availability": [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday"
+            ],
+            "max_hours": 44,
+            "min_off_days": 2,
+            "preferred_off_days": []
+        },
+        {
+            "name": "Honkit",
+            "role": "Regular",
+            "availability": [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday"
+            ],
+            "max_hours": 44,
+            "min_off_days": 2,
+            "preferred_off_days": []
+        },
+        {
+            "name": "Lucas",
+            "role": "Regular",
+            "availability": [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday"
+            ],
+            "max_hours": 44,
+            "min_off_days": 2,
+            "preferred_off_days": []
+        }
+    ],
+    "training_schedule": {}
+}
