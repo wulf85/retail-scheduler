@@ -11,7 +11,7 @@ class Staff:
         self.name = name
         self.role = role
         self.availability = availability
-        self.max_hours = max_hours  # Overtime allowed
+        self.max_hours = max_hours
         self.min_off_days = min_off_days
         self.weekly_off_requests = {}
         self.schedule = {}
@@ -44,10 +44,8 @@ class RosterGenerator:
         self.report_time = self._subtract_minutes(self.opening_time, report_lead)
         self.morning_end = datetime.time(19, 0)
         self.afternoon_start = datetime.time(12, 0)
-
         self.min_weekday = min_staff_weekday
         self.min_weekend = min_staff_weekend
-
         self.training_schedule = training_schedule or {}
         self.activities = activities or {}
         self.enforce_non_consecutive_closing = enforce_non_consecutive_closing
@@ -55,7 +53,6 @@ class RosterGenerator:
         self.max_closing_per_week = max_closing_per_week
         self.max_incharge_per_week = max_incharge_per_week
         self.auto_tune_enabled = auto_tune_enabled
-
         self.roster = pd.DataFrame(index=[s.name for s in staff_list], columns=ALL_DAYS)
         self.violations = []
 
@@ -121,33 +118,48 @@ class RosterGenerator:
             else:
                 self.violations.append(f"No closing staff available on {day}")
 
-    def fill_remaining_shifts(self, day, required_count):
-        current = sum(1 for s in self.staff_list if s.schedule.get(day) and s.schedule[day] != "OFF")
+    def fill_remaining_shifts(self, day, required_count, shift_tracker):
+        current = sum(
+            1 for s in self.staff_list
+            if self.roster.at[s.name, day] not in ["OFF", None]
+        )
         shortfall = max(0, required_count - current)
         eligible = [s for s in self.staff_list if s.is_available(day)]
-        assigned = 0
+
+        # Limit 1 morning and 1 afternoon per day
+        morning_given = False
+        afternoon_given = False
 
         for s in sorted(eligible, key=lambda x: x.total_hours):
-            if assigned >= shortfall:
-                break
-            if assigned % 2 == 0:
+            name = s.name
+            if shift_tracker[name]["Morning"] == 0 and not morning_given:
                 s.assign_shift(day, self.report_time, self.morning_end, "Morning")
-                self.roster.at[s.name, day] = f"Morning: {self.report_time.strftime('%H:%M')}–{self.morning_end.strftime('%H:%M')}"
-            else:
+                self.roster.at[name, day] = f"Morning: {self.report_time.strftime('%H:%M')}–{self.morning_end.strftime('%H:%M')}"
+                shift_tracker[name]["Morning"] += 1
+                morning_given = True
+            elif shift_tracker[name]["Afternoon"] == 0 and not afternoon_given:
                 s.assign_shift(day, self.afternoon_start, self.closing_time, "Afternoon")
-                self.roster.at[s.name, day] = f"Afternoon: {self.afternoon_start.strftime('%H:%M')}–{self.closing_time.strftime('%H:%M')}"
-            assigned += 1
+                self.roster.at[name, day] = f"Afternoon: {self.afternoon_start.strftime('%H:%M')}–{self.closing_time.strftime('%H:%M')}"
+                shift_tracker[name]["Afternoon"] += 1
+                afternoon_given = True
+
+            current = sum(
+                1 for s in self.staff_list
+                if self.roster.at[s.name, day] not in ["OFF", None]
+            )
+            if current >= required_count:
+                break
 
     def generate(self, week_id="Week 1"):
+        shift_tracker = {s.name: {"Morning": 0, "Afternoon": 0} for s in self.staff_list}
         self.assign_off_days(week_id)
         self.assign_daily_in_charge()
         self.assign_closing_staff()
 
         for day in ALL_DAYS:
             required = self.min_weekend if day in WEEKENDS else self.min_weekday
-            self.fill_remaining_shifts(day, required)
+            self.fill_remaining_shifts(day, required, shift_tracker)
 
-        # Fill unassigned days with OFF
         for staff in self.staff_list:
             for day in ALL_DAYS:
                 if day not in staff.schedule:
@@ -169,7 +181,7 @@ class RosterGenerator:
         return self.violations
 
     def export_to_excel(self, filename="weekly_roster.xlsx"):
-        from openpyxl import Workbook
+        from openpyxl import Workbook        
         from openpyxl.styles import PatternFill
 
         wb = Workbook()
